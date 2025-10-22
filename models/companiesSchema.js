@@ -12,6 +12,11 @@ const companySchema = new mongoose.Schema(
     },
     phone: { type: String, required: true, unique: true },
     password: { type: String, required: true, minlength: 6 },
+    internshipType: { 
+      type: String, 
+      required: true,
+      enum: ["Technical", "Non-Technical", "Management", "Research", "Design"],
+    },
   },
   { timestamps: true }
 );
