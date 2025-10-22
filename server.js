@@ -8,7 +8,7 @@ const companiesRoute = require('./routes/companiesRoutes');
 
 
 const app = express();
-const PORT = process.env.PORT ;
+const PORT = process.env.PORT  ;
 
 // Middlewares
 app.use(cors());
