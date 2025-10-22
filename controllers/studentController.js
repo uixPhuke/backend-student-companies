@@ -4,7 +4,6 @@ const jwt = require("jsonwebtoken");
 // Generate JWT token
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-
 const registerStudent = async (req, res) => {
   try {
     const {
@@ -18,7 +17,7 @@ const registerStudent = async (req, res) => {
       password,
     } = req.body;
 
-    // Input validation (same as before)
+    // Input validation
     if (!firstName || !lastName || typeof isFromKiit !== "boolean" || !phone || !internshipType || !password) {
       return res.status(400).json({ success: false, message: "Please fill all required fields." });
     }
@@ -43,8 +42,30 @@ const registerStudent = async (req, res) => {
         return res.status(400).json({ message: "Invalid email format." });
     }
 
-    const existing = await Student.findOne({ phone });
-    if (existing) return res.status(400).json({ message: "Phone already registered." });
+    // FIXED: Better duplicate checking logic
+    const existingQueries = [{ phone }];
+    
+    if (isFromKiit && emailKiit) {
+      existingQueries.push({ emailKiit });
+    } else if (!isFromKiit && emailNonKiit) {
+      existingQueries.push({ emailNonKiit });
+    }
+
+    const existing = await Student.findOne({
+      $or: existingQueries
+    });
+
+    if (existing) {
+      if (existing.phone === phone) {
+        return res.status(400).json({ message: "Phone already registered." });
+      }
+      if (isFromKiit && existing.emailKiit === emailKiit) {
+        return res.status(400).json({ message: "KIIT email already registered." });
+      }
+      if (!isFromKiit && existing.emailNonKiit === emailNonKiit) {
+        return res.status(400).json({ message: "Email already registered." });
+      }
+    }
 
     const newStudent = await Student.create({
       firstName,
@@ -64,18 +85,49 @@ const registerStudent = async (req, res) => {
       data: newStudent,
     });
   } catch (error) {
+    // Handle MongoDB duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      if (field === 'phone') {
+        return res.status(400).json({ message: "Phone already registered." });
+      } else if (field === 'emailKiit') {
+        return res.status(400).json({ message: "KIIT email already registered." });
+      } else if (field === 'emailNonKiit') {
+        return res.status(400).json({ message: "Email already registered." });
+      }
+    }
     res.status(500).json({ success: false, message: "Server error during registration.", error: error.message });
   }
 };
 
-// login
+// Login with emailOrPhone (unchanged, working correctly)
 const loginStudent = async (req, res) => {
   try {
-    const { phone, password } = req.body;
-    if (!phone || !password)
-      return res.status(400).json({ success: false, message: "Phone and password are required." });
+    const { emailOrPhone, password } = req.body;
+    
+    if (!emailOrPhone || !password)
+      return res.status(400).json({ success: false, message: "Email/Phone and password are required." });
 
-    const student = await Student.findOne({ phone });
+    // Check if input is email or phone
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
+    const isKiitEmail = /^[a-z0-9._%+-]+@kiit\.ac\.in$/i.test(emailOrPhone);
+    const isPhone = /^[6-9]\d{9}$/.test(emailOrPhone);
+
+    let student;
+    if (isEmail || isKiitEmail) {
+      // Search in both emailKiit and emailNonKiit fields
+      student = await Student.findOne({
+        $or: [
+          { emailKiit: emailOrPhone },
+          { emailNonKiit: emailOrPhone }
+        ]
+      });
+    } else if (isPhone) {
+      student = await Student.findOne({ phone: emailOrPhone });
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid email or phone format." });
+    }
+
     if (!student) return res.status(404).json({ success: false, message: "Student not found." });
 
     const isMatch = await student.comparePassword(password);

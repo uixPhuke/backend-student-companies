@@ -6,9 +6,9 @@ const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expires
 // Company Register
 const registerCompany = async (req, res) => {
   try {
-    const { companyName, email, phone, password } = req.body;
+    const { companyName, email, phone, password, internshipType } = req.body;
 
-    if (!companyName || !email || !phone || !password)
+    if (!companyName || !email || !phone || !password || !internshipType)
       return res.status(400).json({ success: false, message: "All fields are required." });
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,11 +19,22 @@ const registerCompany = async (req, res) => {
     if (!phoneRegex.test(phone))
       return res.status(400).json({ message: "Invalid phone number." });
 
+    // Validate internshipType against enum values
+    const validInternshipTypes = ["Technical", "Non-Technical", "Management", "Research", "Design"];
+    if (!validInternshipTypes.includes(internshipType))
+      return res.status(400).json({ message: "Invalid internship type." });
+
     const existing = await Company.findOne({ $or: [{ email }, { phone }] });
     if (existing)
       return res.status(400).json({ message: "Company already registered with given email/phone." });
 
-    const company = await Company.create({ companyName, email, phone, password });
+    const company = await Company.create({ 
+      companyName, 
+      email, 
+      phone, 
+      password, 
+      internshipType 
+    });
 
     res.status(201).json({
       success: true,
@@ -36,12 +47,27 @@ const registerCompany = async (req, res) => {
   }
 };
 
-// Company Login
+// Company Login - Updated to accept emailOrPhone
 const loginCompany = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { emailOrPhone, password } = req.body;
 
-    const company = await Company.findOne({ email });
+    if (!emailOrPhone || !password)
+      return res.status(400).json({ message: "Email/Phone and password are required." });
+
+    // Check if input is email or phone
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone);
+    const isPhone = /^[6-9]\d{9}$/.test(emailOrPhone);
+
+    let company;
+    if (isEmail) {
+      company = await Company.findOne({ email: emailOrPhone });
+    } else if (isPhone) {
+      company = await Company.findOne({ phone: emailOrPhone });
+    } else {
+      return res.status(400).json({ message: "Invalid email or phone format." });
+    }
+
     if (!company) return res.status(404).json({ message: "Company not found." });
 
     const isMatch = await company.comparePassword(password);
