@@ -88,7 +88,7 @@ Request Body:
 
 {
   "companyName": "phixel",
-  "email": "hr@phixel.com",
+  "email": "hr@pcompany.com",
   "phone": "9876543222",
   "password": "company123",
   "internshipType": "Technical"
