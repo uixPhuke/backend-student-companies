@@ -102,7 +102,7 @@ http://localhost:8000/api/v2/companies/login
 Request Body:
 ```bash
 {
-  "emailOrPhone": "hr@phixel.com",
+  "emailOrPhone": "hr@company.com",
   "password": "company123"
 }
 
